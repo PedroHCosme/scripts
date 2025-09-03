@@ -1,0 +1,69 @@
+# --- Variáveis de Configuração ---
+$InstallDir = "$env:USERPROFILE\msys64"
+$InstallerUrl = "https://github.com/msys2/msys2-installer/releases/download/2025-08-30/msys2-x86_64-20250830.exe" 
+$InstallerName = "msys2-installer.exe"
+$InstallerPath = Join-Path $env:TEMP $InstallerName
+
+
+Write-Host "Iniciando a instalação e configuração automatizada do MSYS2..." -ForegroundColor Green
+
+try {
+    Write-Host "Baixando o instalador do MSYS2..."
+    Invoke-WebRequest -Uri $InstallerUrl -OutFile $InstallerPath -UseBasicParsing
+    Write-Host "Download concluído." -ForegroundColor Cyan
+}
+catch {
+    Write-Host "ERRO: Falha ao baixar o instalador. Verifique a URL e sua conexão com a internet." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Instalando o MSYS2 em '$InstallDir'..."
+
+Start-Process -FilePath $InstallerPath -ArgumentList "/S /D=$InstallDir" -Wait
+Write-Host "Instalação concluída." -ForegroundColor Cyan
+
+$Ucrt64Shell = Join-Path $InstallDir 'ucrt64.exe'
+Write-Host "Atualizando pacotes base do MSYS2 (passo 1/2)..."
+Start-Process -FilePath $Ucrt64Shell -ArgumentList "-c 'pacman -Syu --noconfirm --noconfirm'" -Wait
+Write-Host "Atualizando pacotes base do MSYS2 (passo 2/2)..."
+Start-Process -FilePath $Ucrt64Shell -ArgumentList "-c 'pacman -Su --noconfirm --noconfirm'" -Wait
+Write-Host "Pacotes base atualizados." -ForegroundColor Cyan
+
+Write-Host "Instalando a toolchain de desenvolvimento (GCC, make, etc.)... Isso pode demorar alguns minutos."
+$InstallCommand = "pacman -S --needed base-devel mingw-w64-ucrt-x86_64-toolchain --noconfirm"
+Start-Process -FilePath $Ucrt64Shell -ArgumentList "-c '$InstallCommand'" -Wait
+Write-Host "Toolchain instalada com sucesso." -ForegroundColor Cyan
+
+$BinPath = Join-Path $InstallDir "ucrt64\bin"
+$SourceMake = Join-Path $BinPath "mingw32-make.exe"
+$DestMake = Join-Path $BinPath "make.exe"
+
+if (Test-Path $SourceMake) {
+    Write-Host "Criando o atalho 'make.exe' para 'mingw32-make.exe'..."
+    Copy-Item -Path $SourceMake -Destination $DestMake -Force
+    Write-Host "'make.exe' criado com sucesso." -ForegroundColor Cyan
+}
+else {
+    Write-Host "AVISO: 'mingw32-make.exe' não encontrado. Pulando a criação do atalho." -ForegroundColor Yellow
+}
+
+Write-Host "Adicionando '$BinPath' ao PATH do usuário..."
+
+$CurrentUserPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+
+if ($CurrentUserPath -notlike "$BinPath") {
+    $NewPath = ($CurrentUserPath, $BinPath) -join ';'
+    
+    [System.Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
+    Write-Host "PATH do usuário atualizado com sucesso." -ForegroundColor Cyan
+}
+else {
+    Write-Host "O caminho do MSYS2 já existe no PATH do usuário. Nenhuma alteração foi feita." -ForegroundColor Yellow
+}
+
+Write-Host "Limpando o instalador..."
+Remove-Item $InstallerPath -ErrorAction SilentlyContinue
+
+Write-Host "--------------------------------------------------------" -ForegroundColor Green
+Write-Host "Instalação do MSYS2 concluída com sucesso!" -ForegroundColor Green
+Write-Host "IMPORTANTE: Feche e abra novamente este terminal para que as alterações no PATH tenham efeito." -ForegroundColor Yellow
