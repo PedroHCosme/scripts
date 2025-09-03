@@ -61,12 +61,22 @@ Write-Host "Toolchain instalada com sucesso." -ForegroundColor Cyan
 $BinPath = Join-Path $InstallDir "ucrt64\bin"
 $SourceMake = Join-Path $BinPath "mingw32-make.exe"
 $DestMake = Join-Path $BinPath "make.exe"
+$GccExe = Join-Path $BinPath "gcc.exe"
+
+Write-Host "Verificando se as ferramentas foram instaladas corretamente..."
+if (Test-Path $GccExe) {
+    Write-Host "GCC encontrado: $GccExe" -ForegroundColor Cyan
+} else {
+    Write-Host "AVISO: GCC não encontrado em $GccExe" -ForegroundColor Yellow
+}
+
 if (Test-Path $SourceMake) {
+    Write-Host "mingw32-make.exe encontrado: $SourceMake" -ForegroundColor Cyan
     Write-Host "Criando o atalho 'make.exe' para 'mingw32-make.exe'..."
     Copy-Item -Path $SourceMake -Destination $DestMake -Force
     Write-Host "'make.exe' criado com sucesso." -ForegroundColor Cyan
 } else {
-    Write-Host "AVISO: 'mingw32-make.exe' não encontrado. Pulando a criação do atalho." -ForegroundColor Yellow
+    Write-Host "AVISO: 'mingw32-make.exe' não encontrado em $SourceMake" -ForegroundColor Yellow
 }
 
 # --- Passo 6: Adicionar ao PATH do Usuário ---
@@ -80,10 +90,42 @@ if ($CurrentUserPath -notlike "*$BinPath*") {
     Write-Host "O caminho do MSYS2 já existe no PATH do usuário. Nenhuma alteração foi feita." -ForegroundColor Yellow
 }
 
-# --- Passo 7: Limpeza ---
+# --- Atualizar PATH da sessão atual ---
+Write-Host "Atualizando PATH da sessão atual..."
+$env:Path = "$env:Path;$BinPath"
+Write-Host "PATH da sessão atual atualizado." -ForegroundColor Cyan
+
+# --- Passo 7: Teste das ferramentas ---
+Write-Host "Testando as ferramentas instaladas..."
+try {
+    Write-Host "Testando GCC..."
+    $gccVersion = & gcc --version 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "GCC funcional: $(($gccVersion -split "`n")[0])" -ForegroundColor Green
+    } else {
+        Write-Host "ERRO: GCC não está funcionando." -ForegroundColor Red
+    }
+} catch {
+    Write-Host "ERRO: Não foi possível executar gcc --version" -ForegroundColor Red
+}
+
+try {
+    Write-Host "Testando Make..."
+    $makeVersion = & make --version 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Make funcional: $(($makeVersion -split "`n")[0])" -ForegroundColor Green
+    } else {
+        Write-Host "ERRO: Make não está funcionando." -ForegroundColor Red
+    }
+} catch {
+    Write-Host "ERRO: Não foi possível executar make --version" -ForegroundColor Red
+}
+
+# --- Passo 8: Limpeza ---
 Write-Host "Limpando o instalador..."
 Remove-Item $InstallerPath -ErrorAction SilentlyContinue
 
 Write-Host "--------------------------------------------------------" -ForegroundColor Green
 Write-Host "Instalação do MSYS2 concluída com sucesso!" -ForegroundColor Green
-Write-Host "IMPORTANTE: Feche e abra novamente este terminal para que as alterações no PATH tenham efeito." -ForegroundColor Yellow
+Write-Host "O PATH foi atualizado para a sessão atual e para futuras sessões." -ForegroundColor Green
+Write-Host "Você já pode usar gcc e make neste terminal!" -ForegroundColor Yellow
