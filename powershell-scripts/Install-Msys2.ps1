@@ -28,14 +28,12 @@ catch {
     exit 1
 }
 
-# --- Passo 2: Instalação Silenciosa ---
 Write-Host "Instalando o MSYS2 em '$InstallDir'..."
 
 Start-Process -FilePath $InstallerPath -ArgumentList @("/S", "/D=$InstallDir") -Wait
 
 Write-Host "Instalação concluída." -ForegroundColor Cyan
 
-# --- Passo 2.5: Verificação da Instalação ---
 $Ucrt64Shell = Join-Path $InstallDir 'ucrt64.exe'
 if (-not (Test-Path $Ucrt64Shell)) {
     Write-Host "ERRO CRÍTICO: A instalação falhou. O arquivo '$Ucrt64Shell' não foi encontrado." -ForegroundColor Red
@@ -46,16 +44,33 @@ Write-Host "Verificação da instalação bem-sucedida." -ForegroundColor Green
 
 # --- Passo 3: Atualizar Pacotes Base ---
 Write-Host "Atualizando pacotes base do MSYS2 (passo 1/2)..."
-Start-Process -FilePath $Ucrt64Shell -ArgumentList "-c 'pacman -Syu --noconfirm --noconfirm'" -Wait
+$process1 = Start-Process -FilePath $Ucrt64Shell -ArgumentList @("-c", "pacman -Syu --noconfirm") -Wait -PassThru
+if ($process1.ExitCode -ne 0) {
+    Write-Host "AVISO: Primeira atualização do pacman retornou código de saída $($process1.ExitCode)" -ForegroundColor Yellow
+}
+
 Write-Host "Atualizando pacotes base do MSYS2 (passo 2/2)..."
-Start-Process -FilePath $Ucrt64Shell -ArgumentList "-c 'pacman -Su --noconfirm --noconfirm'" -Wait
+$process2 = Start-Process -FilePath $Ucrt64Shell -ArgumentList @("-c", "pacman -Su --noconfirm") -Wait -PassThru
+if ($process2.ExitCode -ne 0) {
+    Write-Host "AVISO: Segunda atualização do pacman retornou código de saída $($process2.ExitCode)" -ForegroundColor Yellow
+}
 Write-Host "Pacotes base atualizados." -ForegroundColor Cyan
 
 # --- Passo 4: Instalar a Toolchain de Desenvolvimento ---
 Write-Host "Instalando a toolchain de desenvolvimento (GCC, make, etc.)... Isso pode demorar alguns minutos."
-$InstallCommand = "pacman -S --needed base-devel mingw-w64-ucrt-x86_64-toolchain --noconfirm"
-Start-Process -FilePath $Ucrt64Shell -ArgumentList "-c '$InstallCommand'" -Wait
-Write-Host "Toolchain instalada com sucesso." -ForegroundColor Cyan
+$process3 = Start-Process -FilePath $Ucrt64Shell -ArgumentList @("-c", "pacman -S --needed base-devel mingw-w64-ucrt-x86_64-toolchain --noconfirm") -Wait -PassThru
+if ($process3.ExitCode -ne 0) {
+    Write-Host "ERRO: Instalação da toolchain falhou com código de saída $($process3.ExitCode)" -ForegroundColor Red
+    Write-Host "Tentando novamente sem a flag --needed..." -ForegroundColor Yellow
+    $process3retry = Start-Process -FilePath $Ucrt64Shell -ArgumentList @("-c", "pacman -S base-devel mingw-w64-ucrt-x86_64-toolchain --noconfirm") -Wait -PassThru
+    if ($process3retry.ExitCode -ne 0) {
+        Write-Host "ERRO CRÍTICO: Não foi possível instalar a toolchain. Código de saída: $($process3retry.ExitCode)" -ForegroundColor Red
+    } else {
+        Write-Host "Toolchain instalada com sucesso na segunda tentativa." -ForegroundColor Green
+    }
+} else {
+    Write-Host "Toolchain instalada com sucesso." -ForegroundColor Cyan
+}
 
 # --- Passo 5: Criar o atalho para 'make.exe' ---
 $BinPath = Join-Path $InstallDir "ucrt64\bin"
