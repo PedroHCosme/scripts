@@ -30,7 +30,9 @@ catch {
 
 # --- Passo 2: Instalação Silenciosa ---
 Write-Host "Instalando o MSYS2 em '$InstallDir'..."
-Start-Process -FilePath $InstallerPath -ArgumentList "/S /D=$InstallDir" -Wait
+
+Start-Process -FilePath $InstallerPath -ArgumentList @("/S", "/D=$InstallDir") -Wait
+
 Write-Host "Instalação concluída." -ForegroundColor Cyan
 
 # --- Passo 2.5: Verificação da Instalação ---
